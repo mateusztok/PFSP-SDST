@@ -10,15 +10,14 @@
 class Instance
 {
 private:
-    int jobs;
-    int machines;
-    std::vector<std::vector<int>> proc_time; // czas wykonywania zadań
+    int jobs = 0;
+    int machines = 0;
+    std::vector<std::vector<int>> proc_time;
     std::vector<std::vector<std::vector<int>>> setup_time;
-    const std::string filePath; // czasy przezbrojeń: setup_time[machine][prevJob][currJob]
+    const std::string filePath;
 
 public:
     Instance(const std::string &filename) : filePath(filename) {}
-    // Wczytywanie danych z pliku
     inline void loadFromFile()
     {
         std::ifstream file(filePath);
@@ -29,20 +28,19 @@ public:
         }
 
         std::string line;
-        // --- Wczytanie liczby zadań i maszyn ---
         while (std::getline(file, line))
         {
             if (line.find("jobs") != std::string::npos)
             {
                 std::stringstream ss(line);
                 std::string dummy;
-                ss >> dummy >> dummy >> jobs; // jobs = N
+                ss >> dummy >> dummy >> jobs;
             }
             else if (line.find("machines") != std::string::npos)
             {
                 std::stringstream ss(line);
                 std::string dummy;
-                ss >> dummy >> dummy >> machines; // machines = M
+                ss >> dummy >> dummy >> machines;
             }
             else if (line.find("proc_time") != std::string::npos)
             {
@@ -50,22 +48,57 @@ public:
             }
         }
 
-        // --- Wczytanie czasów przetwarzania ---
         proc_time.assign(jobs, std::vector<int>(machines, 0));
         for (int j = 0; j < jobs; ++j)
         {
+            std::string l;
+            do
+            {
+                if (!std::getline(file, l))
+                {
+                    std::cerr << "Error: unexpected EOF while reading proc_time (job=" << j << ") in " << filePath << std::endl;
+                    return;
+                }
+            } while (l.find_first_not_of(" \t\r\n") == std::string::npos);
+
+            std::stringstream ss(l);
             for (int m = 0; m < machines; ++m)
             {
-                file >> proc_time[j][m];
+                int val = 0;
+                if (!(ss >> val))
+                {
+                    std::cerr << "Error: failed to parse proc_time at job=" << j << " machine=" << m
+                              << " from line: '" << l << "' in " << filePath << std::endl;
+                    return;
+                }
+                proc_time[j][m] = val;
             }
         }
 
-        // --- Wczytanie czasów przezbrojeń ---
+        long long procSum = 0;
+        for (int j = 0; j < jobs; ++j)
+            for (int m = 0; m < machines; ++m)
+                procSum += proc_time[j][m];
+
+        if (procSum == 0)
+        {
+            std::cerr << "Warning: all proc_time values are zero after parsing " << filePath
+                      << ". Check input file format or parsing logic." << std::endl;
+
+            std::cerr << "proc_time sample:\n";
+            for (int j = 0; j < std::min(jobs, 3); ++j)
+            {
+                for (int m = 0; m < std::min(machines, 3); ++m)
+                    std::cerr << proc_time[j][m] << " ";
+                std::cerr << "\n";
+            }
+        }
+
         setup_time.assign(machines, std::vector<std::vector<int>>(jobs, std::vector<int>(jobs, 0)));
 
         for (int m = 0; m < machines; ++m)
         {
-            // szukamy linii "# machine X"
+
             while (std::getline(file, line))
             {
                 if (line.find("# machine") != std::string::npos)
@@ -74,79 +107,87 @@ public:
 
             for (int i = 0; i < jobs; ++i)
             {
+                std::string l;
+                do
+                {
+                    if (!std::getline(file, l))
+                    {
+                        std::cerr << "Error: unexpected EOF while reading setup_time (machine=" << m << " row=" << i << ") in " << filePath << std::endl;
+                        return;
+                    }
+                } while (l.find_first_not_of(" \t\r\n") == std::string::npos);
+
+                std::stringstream ss(l);
                 for (int j = 0; j < jobs; ++j)
                 {
-                    file >> setup_time[m][i][j];
+                    int val = 0;
+                    if (!(ss >> val))
+                    {
+                        std::cerr << "Error: failed to parse setup_time at machine=" << m << " prev=" << i
+                                  << " curr=" << j << " from line: '" << l << "' in " << filePath << std::endl;
+                        return;
+                    }
+                    setup_time[m][i][j] = val;
                 }
             }
         }
 
         file.close();
 
-        // --- Podstawowe informacje o wczytanej instancji ---
-        std::cout << "Instance loaded: " << jobs << " jobs, " << machines << " machines" << std::endl;
+        std::cout << "=== Instance loaded from: " << filePath << " ===" << std::endl;
+        std::cout << "Jobs: " << jobs << ", Machines: " << machines << std::endl;
     }
 
-    // Gettery
     int getJobs() const { return jobs; }
     int getMachines() const { return machines; }
 
-    // Getter czasów przetwarzania dla zadania i na maszynie
     int getProcTime(int job, int machine) const
     {
         return proc_time.at(job).at(machine);
     }
 
-    // Getter czasów przezbrojeń: dla danej maszyny, poprzedniego zadania i bieżącego zadania
     int getSetupTime(int machine, int prevJob, int currJob) const
     {
         return setup_time.at(machine).at(prevJob).at(currJob);
     }
 
-    // Alternatywnie można udostępnić całe tablice jako const reference
     const std::vector<std::vector<int>> &getProcTimes() const { return proc_time; }
     const std::vector<std::vector<std::vector<int>>> &getSetupTimes() const { return setup_time; }
 
     inline double computeMakespan(const std::vector<int> &seq) const
     {
-        if (seq.empty())
+        int n = (int)seq.size();
+        if (n == 0)
             return 0.0;
 
-        int n = seq.size();
         int m = machines;
 
-        // Tablice do przechowywania czasów zakończenia zadań na maszynach
-        std::vector<std::vector<double>> C(n, std::vector<double>(m, 0.0));
+        std::vector<std::vector<double>> completion(n, std::vector<double>(m, 0.0));
 
-        for (int pos = 0; pos < n; ++pos)
+        for (int idx = 0; idx < n; ++idx)
         {
-            int currentJob = seq[pos];
+            int job = seq[idx];
 
-            for (int machine = 0; machine < m; ++machine)
+            for (int mach = 0; mach < m; ++mach)
             {
-                double startTime = 0.0;
 
-                // Warunek 1: Maszyna musi być dostępna (poprzednie zadanie skończone + setup)
-                if (pos > 0)
+                double prevMachineTime = (mach > 0) ? completion[idx][mach - 1] : 0.0;
+                double prevJobTime = (idx > 0) ? completion[idx - 1][mach] : 0.0;
+
+                int prevJob = (idx > 0) ? seq[idx - 1] : job;
+                double setup = 0.0;
+                if (idx > 0)
                 {
-                    int prevJob = seq[pos - 1];
-                    double setupTime = setup_time[machine][prevJob][currentJob];
-                    startTime = C[pos - 1][machine] + setupTime;
+
+                    setup = setup_time[mach][prevJob][job];
                 }
 
-                // Warunek 2: Poprzednia operacja tego zadania musi być skończona
-                if (machine > 0)
-                {
-                    startTime = std::max(startTime, C[pos][machine - 1]);
-                }
+                double proc = proc_time[job][mach];
 
-                // Czas zakończenia = czas rozpoczęcia + czas przetwarzania
-                double procTime = proc_time[currentJob][machine];
-                C[pos][machine] = startTime + procTime;
+                completion[idx][mach] = std::max(prevMachineTime + setup, prevJobTime + setup) + proc;
             }
         }
 
-        // Makespan to czas zakończenia ostatniego zadania na ostatniej maszynie
-        return C[n - 1][m - 1];
+        return completion[n - 1][m - 1];
     }
 };

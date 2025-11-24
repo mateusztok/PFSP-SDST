@@ -1,15 +1,17 @@
 #pragma once
 #include <vector>
 #include <iostream>
+#include <algorithm>
+class Instance;
 
 class Schedule
 {
 private:
-    std::vector<int> jobSequence; // kolejność zadań
+    std::vector<int> jobSequence;
 
 public:
     Schedule() = default;
-    Schedule(const std::vector<int>& seq) : jobSequence(seq) {}
+    Schedule(const std::vector<int> &seq) : jobSequence(seq) {}
     Schedule(int jobs)
     {
         jobSequence.resize(jobs);
@@ -25,4 +27,6 @@ public:
             std::cout << j << " ";
         std::cout << std::endl;
     }
+
+    void emitFinalSlots(const class Instance &instance) const;
 };

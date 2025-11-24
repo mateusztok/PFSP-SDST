@@ -3,16 +3,6 @@
 import io, csv, math, threading, subprocess, tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from collections import defaultdict, deque
-import logging
-import os
-
-# Konfiguracja logowania
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
-
-logger.info("=== PFSP GUI STARTING ===")
-logger.info(f"Working directory: {os.getcwd()}")
-logger.info(f"Python executable: {subprocess.sys.executable}")
 
 ALGO_SCHEMAS = {
     "Quick NEH": [],  # Podstawowy NEH bez parametrów
@@ -29,20 +19,18 @@ ALGO_SCHEMAS = {
         ("Współczynnik adaptacji", "float", {"min": 1e-6, "max": 1.0}, 0.98),
         ("Iteracje na poziom", "int", {"min": 1}, 150),
     ],
-    "Quick NEH + SA": [],  # Kombinacja bez dodatkowych parametrów
-    "NEH Progress + SA": [],  # Kombinacja z progressem
-    "Quick NEH + Adaptive SA": [],  # Kombinacja z ASA
+    "Quick NEH + Simulated Annealing": [],  # Kombinacja bez dodatkowych parametrów
+    "NEH Progress + Simulated Annealing": [],  # Kombinacja z progressem
+    "Quick NEH + Adaptive Simulated Annealing": [],  # Kombinacja z adaptive simulated annealing
 }
 ERROR_BG = "#ffdddd"
 
 class App(tk.Tk):
     def __init__(self):
-        logger.info("Initializing GUI App...")
         super().__init__()
         self.title("PFSP – Live GUI (Canvas)")
         self.geometry("1100x820")
         self.minsize(900, 680)
-        logger.info("GUI window created")
 
         self.file_var = tk.StringVar()
         self.method_var = tk.StringVar(value=list(ALGO_SCHEMAS.keys())[0])
@@ -60,7 +48,6 @@ class App(tk.Tk):
 
         self._build_ui()
         self._render_params()
-        logger.info("GUI initialization complete")
 
     def _build_ui(self):
         menubar = tk.Menu(self)
@@ -115,58 +102,27 @@ class App(tk.Tk):
         self.txt.pack(fill="both", expand=True, padx=6, pady=6)
 
     def _choose_file(self):
-        logger.info("File dialog opened")
         path = filedialog.askopenfilename(filetypes=[("TXT/CSV", "*.txt *.csv"), ("Wszystkie", "*.*")])
-        if not path: 
-            logger.info("No file selected")
-            return
-        logger.info(f"File selected: {path}")
+        if not path: return
         self.file_var.set(path)
         self._read_size(path)
 
     def _read_size(self, path):
-        logger.info(f"Reading file size from: {path}")
         self.m=self.n=None
         try:
             with open(path,"r",encoding="utf-8") as f:
-                content = f.read()
-            logger.debug(f"File content preview: {content[:100]}...")
-            
-            # Sprawdź format "jobs = X" i "machines = Y"
-            import re
-            jobs_match = re.search(r'jobs\s*=\s*(\d+)', content)
-            machines_match = re.search(r'machines\s*=\s*(\d+)', content)
-            
-            if jobs_match and machines_match:
-                n = int(jobs_match.group(1))   # jobs = n (zadania)
-                m = int(machines_match.group(1))  # machines = m (maszyny)
-                logger.info(f"Found format: jobs={n}, machines={m}")
+                first=f.readline().strip()
+            t=first.replace(","," ").split()
+            if len(t)>=2:
+                m=int(t[0]); n=int(t[1])
                 if m>0 and n>0:
                     self.m,self.n=m,n
                     self.size_var.set(f"m={m}, n={n}")
-                    logger.info(f"Successfully parsed: m={m}, n={n}")
                 else:
-                    logger.error("Invalid m,n values")
                     self.size_var.set("Błędny format: m,n>0")
             else:
-                logger.info("Format 'jobs = X' not found, trying fallback format")
-                # Fallback: spróbuj stary format "m n"
-                first_line = content.split('\n')[0].strip()
-                t=first_line.replace(","," ").split()
-                if len(t)>=2:
-                    m=int(t[0]); n=int(t[1])
-                    if m>0 and n>0:
-                        self.m,self.n=m,n
-                        self.size_var.set(f"m={m}, n={n}")
-                        logger.info(f"Fallback format parsed: m={m}, n={n}")
-                    else:
-                        logger.error("Invalid fallback m,n values")
-                        self.size_var.set("Błędny format: m,n>0")
-                else:
-                    logger.error("No valid format found")
-                    self.size_var.set("Błędny format: 'm n …' lub 'jobs = n'")
+                self.size_var.set("Błędny format: 'm n …'")
         except Exception as e:
-            logger.error(f"Error reading file: {e}")
             self.size_var.set(f"Błąd: {e}")
 
     def _clear_params(self):
@@ -191,14 +147,8 @@ class App(tk.Tk):
 
     # --------- LIVE subprocess ---------
     def _start_live(self):
-        logger.info("=== START LIVE clicked ===")
         if not self.file_var.get():
-            logger.warning("No file selected")
             messagebox.showwarning("Brak pliku","Wybierz plik z danymi."); return
-        
-        logger.info(f"Selected file: {self.file_var.get()}")
-        logger.info(f"Problem size: m={self.m}, n={self.n}")
-        
         self.best_var.set("Najlepszy: —")
         # Wyczyść bufor slotów i Canvas
         with self.lock:
@@ -207,43 +157,12 @@ class App(tk.Tk):
             self.last_complete_iter = 0
         self.gantt.delete("all")
 
-        # Uruchom C++ solver — ścieżka dla WSL/Linux
-        binary_path = "../../low_layer/bin/pfsp_sdst"
-        
-        # Mapowanie nazw GUI na nazwy algorytmów C++
-        algorithm_map = {
-            "Quick NEH": "quick_neh",
-            "NEH with Progress": "neh_progress", 
-            "Simulated Annealing": "simulated_annealing",
-            "Adaptive Simulated Annealing": "adaptive_sa",
-            "Quick NEH + SA": "quick_neh+sa",
-            "NEH Progress + SA": "neh_progress+sa", 
-            "Quick NEH + Adaptive SA": "quick_neh+adaptive_sa"
-        }
-        
-        selected_algo = self.method_var.get()
-        cpp_algorithm = algorithm_map.get(selected_algo, "neh_progress")  # fallback
-        
-        logger.info(f"Selected GUI algorithm: {selected_algo}")
-        logger.info(f"Mapped to C++ algorithm: {cpp_algorithm}")
-        
-        cmd = [binary_path, self.file_var.get(), cpp_algorithm]
-        
-        logger.info(f"Command to execute: {' '.join(cmd)}")
-        logger.info(f"Checking if binary exists: {binary_path}")
-        
-        import os
-        if os.path.exists(binary_path):
-            logger.info("Binary found!")
-        else:
-            logger.error(f"Binary NOT found at {binary_path}")
-            logger.info(f"Current working directory: {os.getcwd()}")
-            logger.info(f"Files in current dir: {os.listdir('.')}")
-            
+        # Uruchom C++ solver — zastąp ścieżkę do binarki
+        # Dodajemy flagę --progress-output żeby C++ wypisywał NEH_PROGRESS tylko dla GUI
+        cmd = ["./cpp/a.out", self.file_var.get(), "1", "--progress-output"]  # '1' = force setups (jeśli potrzebne)
         self.txt.insert("end", f"$ {' '.join(cmd)}\n"); self.txt.see("end")
         t = threading.Thread(target=self._stream_worker, args=(cmd,), daemon=True)
         t.start()
-        logger.info("Thread started")
 
     def _stop_proc(self):
         if self.proc and self.proc.poll() is None:
@@ -251,56 +170,34 @@ class App(tk.Tk):
             self.txt.insert("end","[i] Zatrzymano proces.\n"); self.txt.see("end")
 
     def _stream_worker(self, cmd):
-        logger.info(f"Stream worker started with command: {cmd}")
-        try:
-            # Uwaga: bufsize=1 + text=True dla buforowania liniowego [platformowo]
-            logger.info("Creating subprocess...")
-            self.proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                         text=True, bufsize=1, universal_newlines=True)
-            logger.info(f"Process created with PID: {self.proc.pid}")
-            
-            with self.proc.stdout:
-                line_count = 0
-                for line in iter(self.proc.stdout.readline, ''):
-                    line_count += 1
-                    s = line.rstrip("\n")
-                    if line_count <= 10:  # Log first 10 lines
-                        logger.debug(f"Output line {line_count}: {s}")
-                    
+        # Uwaga: bufsize=1 + text=True dla buforowania liniowego [platformowo]
+        self.proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                     text=True, bufsize=1, universal_newlines=True)
+        with self.proc.stdout:
+            for line in iter(self.proc.stdout.readline, ''):
+                s = line.rstrip("\n")
+                self.txt.after(0, lambda L=line: (self.txt.insert("end", L), self.txt.see("end")))
+                if not s:
+                    continue
+                # Parsowanie prostych prefiksów API
+                if s.startswith("NEH_PROGRESS;"):
+                    self._handle_progress(s)
+                elif s.startswith("NEH_CHOICE;"):
+                    pass  # opcjonalnie: można pokazywać job/best_pos
+                elif s.startswith("SLOT;"):
+                    self._handle_slot(s)
+                elif s.startswith("FRAME_END;"):
+                    self._handle_frame_end(s)
+                elif "_RESULT;" in s:
+                    # handle any algorithm result line (NEH, SIMULATED_ANNEALING, ADAPTIVE_SA etc.)
+                    self._handle_result(s)
+                elif s == "END":
+                    break
+                elif s.startswith("ERROR;"):
+                    # błąd z C++ — pokaż userowi
                     self.txt.after(0, lambda L=line: (self.txt.insert("end", L), self.txt.see("end")))
-                    if not s:
-                        continue
-                    # Parsowanie prostych prefiksów API
-                    if s.startswith("NEH_PROGRESS;"):
-                        logger.debug(f"Progress: {s}")
-                        self._handle_progress(s)
-                    elif s.startswith("NEH_CHOICE;"):
-                        pass  # opcjonalnie: można pokazywać job/best_pos
-                    elif s.startswith("SLOT;"):
-                        logger.debug(f"Slot: {s}")
-                        self._handle_slot(s)
-                    elif s.startswith("FRAME_END;"):
-                        logger.debug(f"Frame end: {s}")
-                        self._handle_frame_end(s)
-                    elif s.startswith("NEH_RESULT;") or s.startswith("SA_RESULT;") or s.startswith("ASA_RESULT;") or s.startswith("QUICK_NEH_RESULT;"):
-                        logger.info(f"Result: {s}")
-                        self._handle_result(s)
-                    elif s == "END":
-                        logger.info("Process ended normally")
-                        break
-                    elif s.startswith("ERROR;"):
-                        logger.error(f"C++ error: {s}")
-                        # błąd z C++ — pokaż userowi
-                        self.txt.after(0, lambda L=line: (self.txt.insert("end", L), self.txt.see("end")))
-                    # inne linie ignorujemy lub wypisujemy w logu
-            
-            self.proc.wait()
-            logger.info(f"Process finished with return code: {self.proc.returncode}")
-            
-        except Exception as e:
-            logger.error(f"Error in stream worker: {e}")
-            import traceback
-            logger.error(f"Traceback: {traceback.format_exc()}")
+                # inne linie ignorujemy lub wypisujemy w logu
+        self.proc.wait()
 
     # --------- Parsowanie linii API ---------
     @staticmethod
@@ -422,13 +319,4 @@ class App(tk.Tk):
             c.create_text(x, pad_top - 8, text=str(t), anchor="s")
 
 if __name__=="__main__":
-    logger.info("Starting PFSP GUI application...")
-    try:
-        app = App()
-        logger.info("App created successfully, starting mainloop...")
-        app.mainloop()
-        logger.info("Application closed")
-    except Exception as e:
-        logger.error(f"Fatal error: {e}")
-        import traceback
-        logger.error(f"Traceback: {traceback.format_exc()}")
+    App().mainloop()

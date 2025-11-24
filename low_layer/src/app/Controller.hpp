@@ -3,72 +3,63 @@
 #include "../core/Instance.hpp"
 #include "../core/Schedule.hpp"
 #include "../core/SimulatedAnnealing.hpp"
-#include "../core/QuickNEH.hpp"
 #include "../core/NEHWithProgress.hpp"
 #include <iostream>
 #include <chrono>
+#include <algorithm>
+#include <vector>
+#include <cctype>
 
 class Controller
 {
 private:
     Instance instance;
     Schedule schedule;
-    std::string algorithmName;
+
+    std::vector<std::string> tokensFromArgs;
 
 public:
-    Controller(const std::string &instancePath, const std::string &algorithmName)
-        : instance(instancePath), algorithmName(algorithmName) {}
+    Controller(const std::string &instancePath, const std::vector<std::string> &algorithmArgs)
+        : instance(instancePath), tokensFromArgs(algorithmArgs)
+    {
+    }
 
     void execute()
     {
         instance.loadFromFile();
 
-        std::cout << "Algorithm name: '" << algorithmName << "'" << std::endl;
-
-        // Sprawdź czy algorytm zawiera kombinację (np. "quick_neh+sa")
-        bool useNEHProgress = (algorithmName.find("neh_progress") != std::string::npos);
-        bool useQuickNEH = (algorithmName.find("quick_neh") != std::string::npos ||
-                            (algorithmName.find("neh") != std::string::npos && !useNEHProgress));
-        bool useSA = (algorithmName.find("simulated_annealing") != std::string::npos ||
-                      algorithmName.find("sa") != std::string::npos);
-        bool useASA = (algorithmName.find("adaptive_sa") != std::string::npos ||
-                       algorithmName.find("asa") != std::string::npos);
-
-        Schedule currentBest; // Będzie przekazywany między algorytmami
-
-        // 1. NEH with Progress - nowa ulepszona wersja
-        if (useNEHProgress)
+        auto hasToken = [&](const std::string &t) -> bool
         {
-            std::cout << "\n=== Phase 1: NEH with Progress ===" << std::endl;
+            return std::find(tokensFromArgs.begin(), tokensFromArgs.end(), t) != tokensFromArgs.end();
+        };
+
+        Schedule currentBest;
+
+        if (hasToken("neh"))
+        {
+            std::cout << "\n=== Phase: NEH ===" << std::endl;
             currentBest = runNEHWithProgress();
-        }
-        // 1b. QuickNEH - stara wersja (jeśli nie ma progress)
-        else if (useQuickNEH)
-        {
-            std::cout << "\n=== Phase 1: Quick NEH ===" << std::endl;
-            currentBest = runQuickNEH();
+            std::cout << "\n=== Phase: NEH end===" << std::endl;
         }
 
-        // 2. Simulated Annealing - używa wyniku z QuickNEH jako punkt startowy
-        if (useSA)
+        if (hasToken("simulated_annealing"))
         {
-            std::cout << "\n=== Phase 2: Simulated Annealing ===" << std::endl;
+            std::cout << "\n=== Phase: Simulated Annealing ===" << std::endl;
             if (currentBest.getJobSequence().empty())
             {
-                std::cout << "No initial solution from QuickNEH, starting with random." << std::endl;
+                std::cout << "No initial solution from NEH, starting with random." << std::endl;
             }
             else
             {
-                std::cout << "Starting from QuickNEH solution with makespan: "
+                std::cout << "Starting from NEH solution with makespan: "
                           << instance.computeMakespan(currentBest.getJobSequence()) << std::endl;
             }
             currentBest = runSimulatedAnnealing(currentBest);
         }
 
-        // 3. Adaptive SA - używa wyniku z poprzednich algorytmów
-        if (useASA)
+        if (hasToken("adaptive_sa"))
         {
-            std::cout << "\n=== Phase 3: Adaptive Simulated Annealing ===" << std::endl;
+            std::cout << "\n=== Phase: Adaptive Simulated Annealing ===" << std::endl;
             if (currentBest.getJobSequence().empty())
             {
                 std::cout << "No initial solution, starting with random." << std::endl;
@@ -81,21 +72,25 @@ public:
             currentBest = runAdaptiveSimulatedAnnealing(currentBest);
         }
 
-        // Jeśli żaden algorytm nie został dopasowany
-        if (!useQuickNEH && !useNEHProgress && !useSA && !useASA)
+        if (!hasToken("neh") && !hasToken("simulated_annealing") && !hasToken("adaptive_sa"))
         {
-            std::cout << "No algorithm matched, algorithm name: '" << algorithmName << "'" << std::endl;
+            std::cout << "No algorithm matched. Provided: ";
+            for (size_t i = 0; i < tokensFromArgs.size(); ++i)
+            {
+                if (i)
+                    std::cout << ",";
+                std::cout << tokensFromArgs[i];
+            }
+            std::cout << std::endl;
             std::cout << "Available algorithms:" << std::endl;
-            std::cout << "  - quick_neh (or neh)" << std::endl;
-            std::cout << "  - neh_progress" << std::endl;
-            std::cout << "  - simulated_annealing (or sa)" << std::endl;
-            std::cout << "  - adaptive_sa (or asa)" << std::endl;
-            std::cout << "  - neh_progress+sa" << std::endl;
-            std::cout << "  - neh_progress+asa" << std::endl;
-            std::cout << "  - quick_neh+sa+asa" << std::endl;
+            std::cout << "  - neh" << std::endl;
+            std::cout << "  - simulated_annealing" << std::endl;
+            std::cout << "  - adaptive_sa" << std::endl;
+            std::cout << "  - neh+simulated_annealing" << std::endl;
+            std::cout << "  - neh+adaptive_sa" << std::endl;
+            std::cout << "  - neh+simulated_annealing+adaptive_sa" << std::endl;
         }
 
-        // Podsumowanie końcowe
         if (!currentBest.getJobSequence().empty())
         {
             std::cout << "\n=== FINAL RESULT ===" << std::endl;
@@ -113,20 +108,20 @@ private:
 
         auto start = std::chrono::high_resolution_clock::now();
 
-        SimulatedAnnealing sa(instance, 42);    // seed = 42 dla powtarzalności
-        sa.setParameters(50000, 100.0, 0.9975); // iteracje, temp_początkowa, czynnik_chłodzenia
+        SimulatedAnnealing simAnneal(instance, 1);
+        simAnneal.setParameters(50000, 100.0, 0.9975);
 
-        Schedule result = sa.solve(initialSolution);
+        Schedule result = simAnneal.solve(initialSolution);
 
         auto end = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 
-        std::cout << "SA best sequence: ";
+        std::cout << "Simulated Annealing best sequence: ";
         result.print();
 
         double makespan = instance.computeMakespan(result.getJobSequence());
-        std::cout << "SA final makespan: " << makespan << std::endl;
-        std::cout << "SA execution time: " << duration.count() << " ms" << std::endl;
+        std::cout << "Simulated Annealing final makespan: " << makespan << std::endl;
+        std::cout << "Simulated Annealing execution time: " << duration.count() << " ms" << std::endl;
 
         return result;
     }
@@ -137,61 +132,35 @@ private:
 
         auto start = std::chrono::high_resolution_clock::now();
 
-        SimulatedAnnealing sa(instance, 42);    // seed = 42 dla powtarzalności
-        sa.setParameters(50000, 100.0, 0.9975);
-        sa.setParameters(50000, 100.0, 0.9975);
+        SimulatedAnnealing simAnneal(instance, 1);
+        simAnneal.setParameters(50000, 100.0, 0.9975);
 
-        Schedule result = sa.solveAdaptive(initialSolution);
-
-        auto end = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-
-        std::cout << "ASA best sequence: ";
-        result.print();
-
-        double makespan = instance.computeMakespan(result.getJobSequence());
-        std::cout << "ASA final makespan: " << makespan << std::endl;
-        std::cout << "ASA execution time: " << duration.count() << " ms" << std::endl;
-
-        return result;
-    }
-
-    Schedule runQuickNEH()
-    {
-        std::cout << "Running Quick NEH Algorithm..." << std::endl;
-
-        auto start = std::chrono::high_resolution_clock::now();
-
-        QuickNEH neh(instance);
-        Schedule result = neh.solve();
+        Schedule result = simAnneal.solveAdaptive(initialSolution);
 
         auto end = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 
-        std::cout << "NEH best sequence: ";
+        std::cout << "Adaptive Simulated Annealing best sequence: ";
         result.print();
 
         double makespan = instance.computeMakespan(result.getJobSequence());
-        std::cout << "NEH final makespan: " << makespan << std::endl;
-        std::cout << "NEH execution time: " << duration.count() << " ms" << std::endl;
+        std::cout << "Adaptive Simulated Annealing final makespan: " << makespan << std::endl;
+        std::cout << "Adaptive Simulated Annealing execution time: " << duration.count() << " ms" << std::endl;
 
         return result;
     }
 
     Schedule runNEHWithProgress()
     {
-        std::cout << "Running NEH with Progress Logging..." << std::endl;
-
         auto start = std::chrono::high_resolution_clock::now();
-
         NEHWithProgress neh(instance);
-        Schedule result = neh.solve(true); // verbose = true
-
+        
+        Schedule result = neh.solve();
         auto end = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 
-        std::cout << "NEH Progress final makespan: " << instance.computeMakespan(result.getJobSequence()) << std::endl;
-        std::cout << "NEH Progress execution time: " << duration.count() << " ms" << std::endl;
+        double nehMakespan = instance.computeMakespan(result.getJobSequence());
+        std::cout << "NEH final makespan: " << nehMakespan << ", execution time: " << duration.count() << " ms" << std::endl;
 
         return result;
     }

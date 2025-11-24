@@ -7,7 +7,6 @@ BIN_DIR := bin
 
 TARGET := $(BIN_DIR)/pfsp_sdst
 
-# Znajdź wszystkie pliki .cpp rekurencyjnie (w src/, src/core/, src/app/)
 SRC_FILES := $(wildcard $(SRC_DIR)/*.cpp) \
              $(wildcard $(SRC_DIR)/core/*.cpp) \
              $(wildcard $(SRC_DIR)/app/*.cpp)

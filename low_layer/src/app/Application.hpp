@@ -7,20 +7,27 @@ class Application
 {
 private:
     std::string instancePath;
-    std::string algorithmName;
+    std::vector<std::string> algorithms;
 
 public:
-    Application(const std::string &dataFile, const std::string &algorithm)
-        : instancePath(dataFile), algorithmName(algorithm) {}
+    Application(const std::string &dataFile, const std::vector<std::string> &algs)
+        : instancePath(dataFile), algorithms(algs) {}
 
     int run()
     {
         std::cout << "Data file: " << instancePath << std::endl;
-        std::cout << "Algorithm: " << algorithmName << std::endl;
+        std::cout << "Algorithms: ";
+        for (size_t i = 0; i < algorithms.size(); ++i)
+        {
+            if (i)
+                std::cout << ",";
+            std::cout << algorithms[i];
+        }
+        std::cout << std::endl;
 
         try
         {
-            Controller controller(instancePath, algorithmName);
+            Controller controller(instancePath, algorithms);
             controller.execute();
         }
         catch (const std::exception &e)
