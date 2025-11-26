@@ -12,14 +12,6 @@ class NEHWithProgress
 private:
     const Instance &instance;
 
-    struct OpRec
-    {
-        int job;
-        long long start;
-        long long end;
-        int setup_used;
-    };
-
 public:
     NEHWithProgress(const Instance &inst) : instance(inst) {}
 
