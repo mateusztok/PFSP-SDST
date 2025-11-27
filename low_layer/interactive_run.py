@@ -11,10 +11,7 @@ LOW_BIN = REPO / "low_layer" / "bin" / "pfsp_sdst"
 ALGO_DEFS = {
     "neh": ["neh"],
     "simulated_annealing": ["simulated_annealing"],
-    "adaptive_sa": ["adaptive_sa"],
-    "neh + simulated_annealing": ["neh", "simulated_annealing"],
-    "neh + adaptive_sa": ["neh", "adaptive_sa"],
-    "neh + simulated_annealing + adaptive_sa": ["neh", "simulated_annealing", "adaptive_sa"]
+    "neh + simulated_annealing": ["neh", "simulated_annealing"]
 }
 
 ALGORITHMS = list(ALGO_DEFS.items())

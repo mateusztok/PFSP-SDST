@@ -36,91 +36,29 @@ public:
 
     Schedule solve(const Schedule &initialSolution = Schedule())
     {
-        int n = instance.getJobs();
-
-        std::vector<int> currentSeq;
-        if (initialSolution.getJobSequence().empty())
-        {
-
-            currentSeq.resize(n);
-            for (int i = 0; i < n; i++)
-            {
-                currentSeq[i] = i;
-            }
-            std::shuffle(currentSeq.begin(), currentSeq.end(), rng);
-        }
-        else
-        {
-            currentSeq = initialSolution.getJobSequence();
-        }
-
+        auto currentSeq = makeStartSequence(initialSolution);
         return runSAFromSeq(currentSeq, maxIterations, initialTemperature, coolingFactor, "SIMULATED_ANNEALING");
     }
 
-    Schedule solveAdaptive(const Schedule &initialSolution = Schedule())
+private:
+    std::vector<int> makeStartSequence(const Schedule &initialSolution)
     {
         int n = instance.getJobs();
-
-        std::vector<int> currentSeq;
+        std::vector<int> seq;
         if (initialSolution.getJobSequence().empty())
         {
-            currentSeq.resize(n);
-            for (int i = 0; i < n; i++)
+            seq.resize(n);
+            for (int i = 0; i < n; ++i)
             {
-                currentSeq[i] = i;
+                seq[i] = i;
             }
-            std::shuffle(currentSeq.begin(), currentSeq.end(), rng);
+            std::shuffle(seq.begin(), seq.end(), rng);
         }
         else
         {
-            currentSeq = initialSolution.getJobSequence();
+            seq = initialSolution.getJobSequence();
         }
-
-        std::vector<int> statsSeq = currentSeq;
-        double statsCurrent = instance.computeMakespan(statsSeq);
-        double statsBestCmax = statsCurrent;
-
-        std::uniform_int_distribution<int> jobDist(0, n - 1);
-
-        int sumSteps = 0;
-        int statsIterations = maxIterations / 10;
-        if (statsIterations <= 0)
-            statsIterations = 1;
-
-        for (int i = 0; i < statsIterations; i++)
-        {
-            int pos1 = jobDist(rng);
-            int pos2 = jobDist(rng);
-
-            std::swap(statsSeq[pos1], statsSeq[pos2]);
-            double newCmax = instance.computeMakespan(statsSeq);
-            int difference = std::abs(static_cast<int>(newCmax - statsCurrent));
-            sumSteps += difference;
-
-            statsCurrent = newCmax;
-            if (newCmax < statsBestCmax)
-            {
-                statsBestCmax = newCmax;
-            }
-        }
-
-        int averageStep = sumSteps / statsIterations / 15;
-        if (averageStep == 0)
-            averageStep = 1;
-
-        double temperature = -averageStep / std::log(0.8);
-        double coolingFactorAdaptive = std::pow(std::log(0.8) / std::log(0.001), 1.0 / (maxIterations * 0.95));
-
-        std::cout << "Phase 2: Optimization with adaptive temperature: " << temperature << std::endl;
-
-        Schedule phase2 = runSAFromSeq(currentSeq, maxIterations, temperature, coolingFactorAdaptive, "ADAPTIVE_SA");
-        return phase2;
-    }
-
-private:
-    void generateVisualization(const std::vector<int> &sequence)
-    {
-        Schedule(sequence).emitFinalSlots(instance);
+        return seq;
     }
 
     Schedule runSAFromSeq(std::vector<int> startSeq, int iterations, double initTemp, double cooling, const std::string &prefix)
@@ -173,16 +111,11 @@ private:
             }
 
             temperature *= cooling;
-            if (iteration % 5000 == 0 && iteration > 0)
-            {
-                std::cout << "Iteration " << iteration << ", current best: " << bestCmax << std::endl;
-            }
         }
 
         std::cout << "Final best makespan: " << bestCmax << std::endl;
 
-        generateVisualization(bestSeq);
-
+        Schedule(bestSeq).emitFinalSlots(instance);
         return Schedule(bestSeq);
     }
 };

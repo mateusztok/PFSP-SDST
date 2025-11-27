@@ -184,7 +184,8 @@ public:
 
                 double proc = proc_time[job][mach];
 
-                completion[idx][mach] = std::max(prevMachineTime + setup, prevJobTime + setup) + proc;
+                double start = std::max(prevMachineTime, prevJobTime + setup);
+                completion[idx][mach] = start + proc;
             }
         }
 

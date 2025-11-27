@@ -33,26 +33,16 @@ public:
         std::sort(jobKeys.begin(), jobKeys.end());
 
         std::vector<int> sequence;
-        long long lastMakespan = -1;
 
         if (!jobKeys.empty())
         {
             sequence.push_back(jobKeys[0].second);
-            long long c0 = computeMakespan(sequence);
-            lastMakespan = c0;
         }
 
         for (size_t t = 1; t < jobKeys.size(); ++t)
         {
             int newJob = jobKeys[t].second;
             insertBestWithChoice(sequence, newJob, t + 1);
-
-            long long currentMakespan = computeMakespan(sequence);
-            long long delta = (lastMakespan < 0 ? 0 : lastMakespan - currentMakespan);
-            lastMakespan = currentMakespan;
-
-            (void)currentMakespan;
-            (void)delta;
         }
 
         Schedule(sequence).emitFinalSlots(instance);

@@ -13,15 +13,9 @@ ALGO_SCHEMAS = {
         ("Współczynnik chłodzenia", "float", {"min": 1e-6, "max": 1.0}, 0.95),
         ("Iteracje na poziom", "int", {"min": 1}, 200),
     ],
-    "Adaptive Simulated Annealing": [
-        ("Temperatura początkowa", "float", {"min": 1e-9}, 100.0),
-        ("Temperatura końcowa", "float", {"min": 1e-9}, 0.1),
-        ("Współczynnik adaptacji", "float", {"min": 1e-6, "max": 1.0}, 0.98),
-        ("Iteracje na poziom", "int", {"min": 1}, 150),
-    ],
     "Quick NEH + Simulated Annealing": [],  # Kombinacja bez dodatkowych parametrów
     "NEH Progress + Simulated Annealing": [],  # Kombinacja z progressem
-    "Quick NEH + Adaptive Simulated Annealing": [],  # Kombinacja z adaptive simulated annealing
+    
 }
 ERROR_BG = "#ffdddd"
 
@@ -189,7 +183,7 @@ class App(tk.Tk):
                 elif s.startswith("FRAME_END;"):
                     self._handle_frame_end(s)
                 elif "_RESULT;" in s:
-                    # handle any algorithm result line (NEH, SIMULATED_ANNEALING, ADAPTIVE_SA etc.)
+                    # handle any algorithm result line (NEH, SIMULATED_ANNEALING etc.)
                     self._handle_result(s)
                 elif s == "END":
                     break

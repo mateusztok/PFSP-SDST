@@ -47,7 +47,7 @@ void Schedule::emitFinalSlots(const Instance &instance) const
         int prevJob = -1;
         for (const auto &op : schedule[mIdx])
         {
-            std::cout << "SLOT;iter=FINAL"
+            std::cout << "SLOT;"
                       << ";machine=" << mIdx
                       << ";prev=" << (prevJob < 0 ? -1 : prevJob)
                       << ";job=" << op.job

@@ -7,8 +7,8 @@ int main(int argc, char **argv)
     if (argc < 3)
     {
         std::cerr << "Usage: " << argv[0] << " <data_file> <algorithm>" << std::endl;
-        std::cerr << "Algorithms: neh, simulated_annealing, adaptive_sa" << std::endl;
-        std::cerr << "Combinations: neh+simulated_annealing, neh+adaptive_sa, neh+simulated_annealing+adaptive_sa" << std::endl;
+        std::cerr << "Algorithms: neh, simulated_annealing" << std::endl;
+        std::cerr << "Combinations: neh+simulated_annealing" << std::endl;
         return 1;
     }
 
