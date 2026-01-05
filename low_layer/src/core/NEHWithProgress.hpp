@@ -2,78 +2,66 @@
 #include <vector>
 #include <algorithm>
 #include <iostream>
-#include <climits>
-#include <iomanip>
 #include "Instance.hpp"
 #include "Schedule.hpp"
 
-class NEHWithProgress
-{
+class NEHWithProgress {
 private:
     const Instance &instance;
 
 public:
     NEHWithProgress(const Instance &inst) : instance(inst) {}
 
-    Schedule solve()
-    {
+    Schedule solve() {
         int n = instance.getJobs();
         int m = instance.getMachines();
 
+        // Sortowanie zadań (LPT)
         std::vector<std::pair<long long, int>> jobKeys;
-        for (int j = 0; j < n; ++j)
-        {
+        for (int j = 0; j < n; ++j) {
             long long totalTime = 0;
-            for (int mach = 0; mach < m; ++mach)
-            {
-                totalTime += instance.getProcTime(j, mach);
-            }
+            for (int mach = 0; mach < m; ++mach) totalTime += instance.getProcTime(j, mach);
             jobKeys.push_back({-totalTime, j});
         }
         std::sort(jobKeys.begin(), jobKeys.end());
 
         std::vector<int> sequence;
+        if (!jobKeys.empty()) sequence.push_back(jobKeys[0].second);
 
-        if (!jobKeys.empty())
-        {
-            sequence.push_back(jobKeys[0].second);
-        }
-
-        for (size_t t = 1; t < jobKeys.size(); ++t)
-        {
+        for (size_t t = 1; t < jobKeys.size(); ++t) {
             int newJob = jobKeys[t].second;
             insertBestWithChoice(sequence, newJob, t + 1);
+            
+            // Opcjonalne: Możesz wysyłać SLOTY po każdym kroku NEH, 
+            // aby widzieć jak harmonogram rośnie "na żywo"
+            // Schedule(sequence).emitFinalSlots(instance); 
         }
 
-        Schedule(sequence).emitFinalSlots(instance);
+        // Wynik końcowy wysyła sloty do GUI
+        Schedule finalSched(sequence);
+        finalSched.emitFinalSlots(instance);
 
-        return Schedule(sequence);
+        return finalSched;
     }
 
 private:
-    void insertBestWithChoice(std::vector<int> &sequence, int job, int iteration)
-    {
+    void insertBestWithChoice(std::vector<int> &sequence, int job, int iteration) {
         std::vector<int> bestSeq;
-        double bestMakespan = 1e9;
+        double bestMakespan = 1e18;
 
-        for (int pos = 0; pos <= (int)sequence.size(); ++pos)
-        {
+        for (int pos = 0; pos <= (int)sequence.size(); ++pos) {
             std::vector<int> candidate = sequence;
             candidate.insert(candidate.begin() + pos, job);
 
-            double makespan = computeMakespan(candidate);
-            if (makespan < bestMakespan)
-            {
+            double makespan = instance.computeMakespan(candidate);
+            if (makespan < bestMakespan) {
                 bestMakespan = makespan;
                 bestSeq = candidate;
             }
         }
-
         sequence = bestSeq;
-    }
-
-    double computeMakespan(const std::vector<int> &sequence)
-    {
-        return instance.computeMakespan(sequence);
+        
+        // Informacja o postępie dla GUI
+        std::cout << "NEH_PROGRESS;iter=" << iteration << ";cmax=" << bestMakespan << std::endl;
     }
 };

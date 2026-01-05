@@ -1,22 +1,19 @@
 #include "app/Application.hpp"
 #include <iostream>
+#include <vector>
+#include <string>
 
-int main(int argc, char **argv)
-{
-
-    if (argc < 3)
-    {
-        std::cerr << "Usage: " << argv[0] << " <data_file> <algorithm>" << std::endl;
-        std::cerr << "Algorithms: neh, simulated_annealing" << std::endl;
-        std::cerr << "Combinations: neh+simulated_annealing" << std::endl;
+int main(int argc, char **argv) {
+    if (argc < 2) {
+        std::cerr << "Usage: " << argv[0] << " <data_file> [algorithms...]" << std::endl;
         return 1;
     }
 
     std::string dataFile = argv[1];
-
     std::vector<std::string> algArgs;
-    for (int i = 2; i < argc; ++i)
-    {
+    
+    // Zbieramy wszystkie argumenty po nazwie pliku (np. neh, simulated_annealing)
+    for (int i = 2; i < argc; ++i) {
         algArgs.push_back(argv[i]);
     }
 

@@ -21,7 +21,6 @@ public:
     SimulatedAnnealing(const Instance &inst, int seed = 0)
         : instance(inst), rng(seed)
     {
-
         maxIterations = 50000;
         initialTemperature = 100.0;
         coolingFactor = 0.9975;
@@ -72,8 +71,7 @@ private:
         std::uniform_int_distribution<int> jobDist(0, n - 1);
         std::uniform_real_distribution<double> probDist(0.0, 1.0);
 
-        std::cout << "Starting " << prefix << "..." << std::endl;
-        std::cout << "Initial makespan: " << currentCmax << std::endl;
+        std::cout << prefix << " started. Initial makespan: " << currentCmax << std::endl;
 
         for (int iteration = 0; iteration < iterations; iteration++)
         {
@@ -103,6 +101,15 @@ private:
                 {
                     bestCmax = newCmax;
                     bestSeq = startSeq;
+
+                    // Wysyłamy informację o nowym najlepszym wyniku do GUI
+                    std::cout << "RESULT;iter=" << iteration << ";cmax=" << bestCmax << std::endl;
+
+                    // Okresowo wysyłamy sloty, aby odświeżyć wykres Gantta w GUI
+                    // (np. co 500 iteracji, jeśli znaleziono poprawę, by nie obciążać procesora)
+                    if (iteration % 500 == 0) {
+                        Schedule(bestSeq).emitFinalSlots(instance);
+                    }
                 }
             }
             else
@@ -113,9 +120,11 @@ private:
             temperature *= cooling;
         }
 
-        std::cout << "Final best makespan: " << bestCmax << std::endl;
+        std::cout << prefix << " finished. Final best makespan: " << bestCmax << std::endl;
 
+        // Na zakończenie wysyłamy ostateczny harmonogram do narysowania
         Schedule(bestSeq).emitFinalSlots(instance);
+        
         return Schedule(bestSeq);
     }
 };
