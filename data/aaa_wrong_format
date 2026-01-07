@@ -1,0 +1,9 @@
+jobs : 2
+machines : 2
+
+proc_time :
+10 12
+15 10
+
+# Tutaj powinny być macierze przezbrojeń, ale ich nie ma.
+# Solver C++ nie będzie wiedział, jak obliczyć setup_time.

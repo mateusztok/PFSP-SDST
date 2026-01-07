@@ -1,0 +1,17 @@
+jobs : 900
+machines : 2
+
+proc_time :
+# [Tutaj musiałoby nastąpić 900 wierszy z 2 wartościami]
+10 20
+... (itd. aż do 900 linii)
+
+# machine 0
+# [Macierz przezbrojeń 900x900]
+0 5 ...
+...
+
+# machine 1
+# [Macierz przezbrojeń 900x900]
+0 2 ...
+...

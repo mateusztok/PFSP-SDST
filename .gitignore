@@ -1,0 +1,26 @@
+# --- Python (high_layer) ---
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+
+# --- C++ (low_layer) ---
+# Ignorowanie plików obiektowych i binariów widocznych w strukturze
+low_layer/build/
+low_layer/bin/
+*.o
+*.a
+*.so
+
+# Plik wykonywalny generowany przez Makefile
+low_layer/bin/pfsp_sdst
+
+# --- IDE & System ---
+# Ignorowanie ustawień VS Code widocznych w projekcie
+.vscode/
+.DS_Store
+Thumbs.db
+
+# --- Dane tymczasowe ---
+*.log

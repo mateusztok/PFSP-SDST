@@ -21,11 +21,13 @@ public:
     SimulatedAnnealing(const Instance &inst, int seed = 0)
         : instance(inst), rng(seed)
     {
+        // Wartości domyślne
         maxIterations = 50000;
         initialTemperature = 100.0;
         coolingFactor = 0.9975;
     }
 
+    // Metoda ustawiająca parametry przesłane z GUI
     void setParameters(int iterations, double temp, double cooling)
     {
         maxIterations = iterations;
@@ -36,6 +38,7 @@ public:
     Schedule solve(const Schedule &initialSolution = Schedule())
     {
         auto currentSeq = makeStartSequence(initialSolution);
+        // Przekazanie zmiennych do głównej pętli algorytmu
         return runSAFromSeq(currentSeq, maxIterations, initialTemperature, coolingFactor, "SIMULATED_ANNEALING");
     }
 
@@ -43,21 +46,13 @@ private:
     std::vector<int> makeStartSequence(const Schedule &initialSolution)
     {
         int n = instance.getJobs();
-        std::vector<int> seq;
-        if (initialSolution.getJobSequence().empty())
-        {
-            seq.resize(n);
-            for (int i = 0; i < n; ++i)
-            {
-                seq[i] = i;
-            }
+        if (initialSolution.getJobSequence().empty()) {
+            std::vector<int> seq(n);
+            for (int i = 0; i < n; ++i) seq[i] = i;
             std::shuffle(seq.begin(), seq.end(), rng);
+            return seq;
         }
-        else
-        {
-            seq = initialSolution.getJobSequence();
-        }
-        return seq;
+        return initialSolution.getJobSequence();
     }
 
     Schedule runSAFromSeq(std::vector<int> startSeq, int iterations, double initTemp, double cooling, const std::string &prefix)
@@ -77,53 +72,30 @@ private:
         {
             int pos1 = jobDist(rng);
             int pos2 = jobDist(rng);
-
             std::swap(startSeq[pos1], startSeq[pos2]);
 
             double newCmax = instance.computeMakespan(startSeq);
             double delta = newCmax - currentCmax;
 
-            bool accept = false;
-            if (delta < 0)
-            {
-                accept = true;
-            }
-            else
-            {
-                double probability = std::exp(-delta / temperature);
-                accept = (probDist(rng) < probability);
-            }
+            bool accept = (delta < 0) || (probDist(rng) < std::exp(-delta / temperature));
 
-            if (accept)
-            {
+            if (accept) {
                 currentCmax = newCmax;
-                if (newCmax < bestCmax)
-                {
+                if (newCmax < bestCmax) {
                     bestCmax = newCmax;
                     bestSeq = startSeq;
-
-                    // Wysyłamy informację o nowym najlepszym wyniku do GUI
+                    // Informacja dla GUI o poprawie wyniku
                     std::cout << "RESULT;iter=" << iteration << ";cmax=" << bestCmax << std::endl;
-
-                    // Okresowo wysyłamy sloty, aby odświeżyć wykres Gantta w GUI
-                    // (np. co 500 iteracji, jeśli znaleziono poprawę, by nie obciążać procesora)
-                    if (iteration % 500 == 0) {
-                        Schedule(bestSeq).emitFinalSlots(instance);
-                    }
+                    if (iteration % 500 == 0) Schedule(bestSeq).emitFinalSlots(instance);
                 }
-            }
-            else
-            {
+            } else {
                 std::swap(startSeq[pos1], startSeq[pos2]);
             }
-
             temperature *= cooling;
         }
 
         std::cout << prefix << " finished. Final best makespan: " << bestCmax << std::endl;
-
-        // Na zakończenie wysyłamy ostateczny harmonogram do narysowania
-        Schedule(bestSeq).emitFinalSlots(instance);
+        Schedule(bestSeq).emitFinalSlots(instance); // Końcowe odświeżenie wykresu
         
         return Schedule(bestSeq);
     }
